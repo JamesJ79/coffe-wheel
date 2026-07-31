@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Coffee Shop Wheel</title>
+<style>
+  :root{
+    --bg: #1b1f27;
+    --panel: #242936;
+    --accent: #ffd166;
+    --text: #f2f2f2;
+    --muted: #8a8f9c;
+  }
+  * { box-sizing: border-box; }
+  html, body{ height: 100%; }
+  body{
+    margin:0;
+    min-height:100vh;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    background: radial-gradient(circle at 50% 20%, #2a3040, #14171e 70%);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: var(--text);
+    gap: 22px;
+    padding: 30px 10px;
+    overflow-x: hidden;
+  }
+  h1{
+    margin: 0;
+    font-size: 1.6rem;
+    letter-spacing: 0.5px;
+  }
+  .subtitle{
+    margin-top: -12px;
+    font-size: 0.85rem;
+    color: var(--muted);
+  }
+  .wheel-wrap{
+    position: relative;
+    width: 420px;
+    height: 420px;
+    max-width: 90vw;
+    max-height: 90vw;
+  }
+  .pointer{
+    position: absolute;
+    top: -6px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 0;
+    height: 0;
+    border-left: 18px solid transparent;
+    border-right: 18px solid transparent;
+    border-top: 34px solid var(--accent);
+    z-index: 5;
+    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));
+  }
+  canvas#wheel{
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    box-shadow: 0 0 0 8px #0e1015, 0 10px 30px rgba(0,0,0,0.6);
+    display:block;
+  }
+  .hub{
+    position:absolute;
+    top:50%;
+    left:50%;
+    width: 46px;
+    height: 46px;
+    background: var(--accent);
+    border-radius: 50%;
+    transform: translate(-50%,-50%);
+    box-shadow: 0 0 0 4px #0e1015, 0 2px 8px rgba(0,0,0,0.5);
+    z-index: 4;
+  }
+  #spinBtn{
+    padding: 14px 46px;
+    font-size: 1.1rem;
+    font-weight: 700;
+    letter-spacing: 1px;
+    border: none;
+    border-radius: 999px;
+    background: var(--accent);
+    color: #1b1f27;
+    cursor: pointer;
+    transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.2s ease;
+    box-shadow: 0 6px 18px rgba(255, 209, 102, 0.35);
+  }
+  #spinBtn:hover:not(:disabled){
+    transform: translateY(-2px);
+  }
+  #spinBtn:disabled{
+    opacity: 0.4;
+    cursor: not-allowed;
+    box-shadow: none;
+  }
+  #resetBtn{
+    padding: 10px 22px;
+    font-size: 0.9rem;
+    border: 1px solid #3a4152;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+  }
+  #resetBtn:hover{ color: var(--text); border-color: var(--text); }
+  .controls{
+    display:flex;
+    gap:14px;
+    align-items:center;
+  }
+  #message{
+    min-height: 1.2em;
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--muted);
+  }
+  #confettiCanvas{
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 9999;
+  }
+  #resultDisplay{
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 78%;
+    transform: translate(-50%, -50%) scale(0.7);
+    font-size: 1.7rem;
+    line-height: 1.15;
+    font-weight: 800;
+    text-align: center;
+    color: #ffffff;
+    text-shadow: 0 0 6px rgba(0,0,0,0.85), 0 0 18px rgba(0,0,0,0.6), 0 2px 4px rgba(0,0,0,0.9);
+    pointer-events: none;
+    z-index: 6;
+    opacity: 0;
+    transition: opacity 0.25s ease, transform 0.25s ease;
+  }
+  #resultDisplay.show{
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+</style>
+</head>
+<body>
+
+  <h1>☕ Coffee Shop Wheel</h1>
+  <div class="subtitle">Where are we grabbing coffee?</div>
+
+  <div class="wheel-wrap">
+    <div class="pointer"></div>
+    <div class="hub"></div>
+    <canvas id="wheel" width="420" height="420"></canvas>
+    <div id="resultDisplay"></div>
+  </div>
+
+  <div class="controls">
+    <button id="spinBtn">SPIN</button>
+    <button id="resetBtn">Reset</button>
+  </div>
+
+  <div id="message"></div>
+
+  <canvas id="confettiCanvas"></canvas>
+
+<script>
+(function(){
+  const canvas = document.getElementById('wheel');
+  const ctx = canvas.getContext('2d');
+  const size = canvas.width;
+  const cx = size/2, cy = size/2;
+  const radius = size/2 - 6;
+  const wheelWrap = document.querySelector('.wheel-wrap');
+
+  // ---- Coffee shop options (placeholders) ----
+  const labels = [
+    'Dear June',
+    'Jacks Bagels',
+    'Rocket',
+    'Ground Zero',
+    'Pottery',
+    'The Table',
+    'Poco Loco',
+    'Plato (Courtenay Street)',
+    'Bay Leaf',
+    "Nina's",
+    'Root (Wellington)',
+    'Spin Again'
+  ];
+  const SPIN_AGAIN_INDEX = labels.length - 1;
+
+  const colors = [
+    '#e74c3c', '#e67e22', '#f1c40f', '#2ecc71', '#1abc9c',
+    '#3498db', '#9b59b6'
+  ];
+
+  const numSlices = labels.length;
+  const sliceAngle = 360 / numSlices;
+  let used = new Array(numSlices).fill(false);
+  let currentRotation = 0;
+  let spinning = false;
+
+  const spinBtn = document.getElementById('spinBtn');
+  const resetBtn = document.getElementById('resetBtn');
+  const message = document.getElementById('message');
+  const resultDisplay = document.getElementById('resultDisplay');
+
+  function degToRad(d){ return d * Math.PI / 180; }
+
+  function wrapLabel(text, maxCharsPerLine){
+    const words = text.split(' ');
+    const lines = [];
+    let line = '';
+    words.forEach(w => {
+      const test = line ? line + ' ' + w : w;
+      if(test.length > maxCharsPerLine && line){
+        lines.push(line);
+        line = w;
+      } else {
+        line = test;
+      }
+    });
+    if(line) lines.push(line);
+    return lines;
+  }
+
+  function drawWheel(){
+    ctx.clearRect(0,0,size,size);
+    for(let i=0;i<numSlices;i++){
+      const startDeg = -90 + i*sliceAngle;
+      const endDeg = startDeg + sliceAngle;
+      const start = degToRad(startDeg);
+      const end = degToRad(endDeg);
+
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.arc(cx, cy, radius, start, end);
+      ctx.closePath();
+      const isSpinAgain = (i === SPIN_AGAIN_INDEX);
+      ctx.fillStyle = used[i] ? '#0c0d10' : (isSpinAgain ? '#3a4152' : colors[i % colors.length]);
+      ctx.fill();
+      ctx.strokeStyle = '#0e1015';
+      ctx.lineWidth = 3;
+      ctx.stroke();
+
+      const midDeg = startDeg + sliceAngle/2;
+      const midRad = degToRad(midDeg);
+      ctx.save();
+      ctx.translate(cx + Math.cos(midRad)*radius*0.66, cy + Math.sin(midRad)*radius*0.66);
+      ctx.rotate(midRad + Math.PI/2);
+      ctx.fillStyle = used[i] ? '#4a4f5c' : (isSpinAgain ? '#ffd166' : '#1b1f27');
+      ctx.font = `bold 12px -apple-system, sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+
+      const lines = wrapLabel(labels[i], 9);
+      const lineHeight = 13;
+      const offsetStart = -((lines.length - 1) * lineHeight) / 2;
+      lines.forEach((ln, li) => {
+        ctx.fillText(ln, 0, offsetStart + li*lineHeight);
+      });
+      ctx.restore();
+    }
+  }
+
+  function eligibleIndices(){
+    // any non-used slice is eligible; Spin Again is always eligible (never used)
+    const r = [];
+    for(let i=0;i<numSlices;i++) if(!used[i]) r.push(i);
+    return r;
+  }
+
+  function remainingShopCount(){
+    let count = 0;
+    for(let i=0;i<numSlices;i++){
+      if(i !== SPIN_AGAIN_INDEX && !used[i]) count++;
+    }
+    return count;
+  }
+
+  // ---------- Audio ----------
+  let audioCtx = null;
+  function getAudioCtx(){
+    if(!audioCtx){
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if(audioCtx.state === 'suspended') audioCtx.resume();
+    return audioCtx;
+  }
+
+  function playWhir(duration){
+    const ac = getAudioCtx();
+    const bufferSize = Math.floor(ac.sampleRate * duration);
+    const noiseBuffer = ac.createBuffer(1, bufferSize, ac.sampleRate);
+    const data = noiseBuffer.getChannelData(0);
+    for(let i=0;i<bufferSize;i++) data[i] = Math.random()*2-1;
+
+    const noise = ac.createBufferSource();
+    noise.buffer = noiseBuffer;
+
+    const bandpass = ac.createBiquadFilter();
+    bandpass.type = 'bandpass';
+    bandpass.Q.value = 0.9;
+    const now = ac.currentTime;
+    bandpass.frequency.setValueAtTime(350, now);
+    bandpass.frequency.linearRampToValueAtTime(1100, now + duration*0.5);
+    bandpass.frequency.linearRampToValueAtTime(280, now + duration);
+
+    const gain = ac.createGain();
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.linearRampToValueAtTime(0.22, now + 0.08);
+    gain.gain.linearRampToValueAtTime(0.18, now + duration*0.8);
+    gain.gain.linearRampToValueAtTime(0.0001, now + duration);
+
+    noise.connect(bandpass);
+    bandpass.connect(gain);
+    gain.connect(ac.destination);
+    noise.start(now);
+    noise.stop(now + duration + 0.05);
+  }
+
+  function playTada(){
+    const ac = getAudioCtx();
+    const now = ac.currentTime;
+    const notes = [523.25, 659.25, 783.99, 1046.50]; // C5 E5 G5 C6
+    notes.forEach((freq, i) => {
+      const osc = ac.createOscillator();
+      osc.type = 'triangle';
+      osc.frequency.value = freq;
+      const gain = ac.createGain();
+      const start = now + i*0.09;
+      gain.gain.setValueAtTime(0.0001, start);
+      gain.gain.linearRampToValueAtTime(0.3, start + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.55);
+      osc.connect(gain);
+      gain.connect(ac.destination);
+      osc.start(start);
+      osc.stop(start + 0.6);
+    });
+  }
+
+  // ---------- Confetti ----------
+  const confettiCanvas = document.getElementById('confettiCanvas');
+  const confettiCtx = confettiCanvas.getContext('2d');
+  let confettiParticles = [];
+  let confettiRunning = false;
+  const confettiColors = ['#ffd166', '#e74c3c', '#2ecc71', '#3498db', '#e84393', '#f1c40f', '#9b59b6', '#1abc9c'];
+
+  function resizeConfetti(){
+    confettiCanvas.width = window.innerWidth;
+    confettiCanvas.height = window.innerHeight;
+  }
+  window.addEventListener('resize', resizeConfetti);
+  resizeConfetti();
+
+  function burstConfetti(){
+    const rect = wheelWrap.getBoundingClientRect();
+    const originX = rect.left + rect.width/2;
+    const originY = rect.top + rect.height/2;
+
+    for(let i=0;i<140;i++){
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 4 + Math.random()*9;
+      confettiParticles.push({
+        x: originX,
+        y: originY,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed - 4,
+        size: 5 + Math.random()*7,
+        color: confettiColors[Math.floor(Math.random()*confettiColors.length)],
+        rotation: Math.random()*360,
+        rotSpeed: (Math.random()*2-1) * 12,
+        life: 0,
+        maxLife: 70 + Math.random()*50
+      });
+    }
+    if(!confettiRunning){
+      confettiRunning = true;
+      requestAnimationFrame(updateConfetti);
+    }
+  }
+
+  function updateConfetti(){
+    confettiCtx.clearRect(0, 0, confettiCanvas.width, confettiCanvas.height);
+    confettiParticles = confettiParticles.filter(p => p.life < p.maxLife);
+
+    for(const p of confettiParticles){
+      p.vy += 0.28; // gravity
+      p.x += p.vx;
+      p.y += p.vy;
+      p.rotation += p.rotSpeed;
+      p.life++;
+
+      const lifeRatio = p.life / p.maxLife;
+      const alpha = lifeRatio > 0.75 ? (1 - (lifeRatio - 0.75) / 0.25) : 1;
+
+      confettiCtx.save();
+      confettiCtx.globalAlpha = Math.max(alpha, 0);
+      confettiCtx.translate(p.x, p.y);
+      confettiCtx.rotate(degToRad(p.rotation));
+      confettiCtx.fillStyle = p.color;
+      confettiCtx.fillRect(-p.size/2, -p.size/4, p.size, p.size/2);
+      confettiCtx.restore();
+    }
+
+    if(confettiParticles.length > 0){
+      requestAnimationFrame(updateConfetti);
+    } else {
+      confettiRunning = false;
+      confettiCtx.clearRect(0, 0, confettiCanvas.width, confettiCanvas.height);
+    }
+  }
+
+  // ---------- Spin logic ----------
+  function spin(){
+    if(spinning) return;
+    const remaining = eligibleIndices();
+    if(remaining.length === 0) return;
+
+    spinning = true;
+    spinBtn.disabled = true;
+    message.textContent = '';
+    resultDisplay.classList.remove('show');
+
+    const idx = remaining[Math.floor(Math.random() * remaining.length)];
+
+    const centerAngle = idx * sliceAngle + sliceAngle/2;
+    const maxJitter = Math.max((sliceAngle/2) - 2, 0);
+    const jitter = (Math.random() * 2 - 1) * maxJitter;
+
+    let targetMod = ((-(centerAngle + jitter)) % 360 + 360) % 360;
+
+    const extraSpins = 5 + Math.floor(Math.random() * 3); // 5-7 full turns
+    const baseFloor = Math.floor(currentRotation / 360) * 360;
+    let newRotation = baseFloor + extraSpins * 360 + targetMod;
+    while(newRotation <= currentRotation + 360){
+      newRotation += 360;
+    }
+
+    currentRotation = newRotation;
+
+    const SPIN_DURATION = 1.5;
+    playWhir(SPIN_DURATION);
+
+    canvas.style.transition = `transform ${SPIN_DURATION}s linear`;
+    canvas.style.transform = `rotate(${currentRotation}deg)`;
+
+    setTimeout(() => {
+      if(idx !== SPIN_AGAIN_INDEX){
+        used[idx] = true;
+      }
+      drawWheel();
+      resultDisplay.textContent = labels[idx];
+      resultDisplay.classList.add('show');
+      message.textContent = `Landed on ${labels[idx]}`;
+      playTada();
+      burstConfetti();
+      spinning = false;
+
+      if(remainingShopCount() === 0){
+        spinBtn.disabled = true;
+        message.textContent += ' — All coffee shops tried! Reset to go again.';
+      } else {
+        spinBtn.disabled = false;
+      }
+    }, SPIN_DURATION * 1000 + 50);
+  }
+
+  function reset(){
+    used = new Array(numSlices).fill(false);
+    currentRotation = currentRotation % 360;
+    canvas.style.transition = 'none';
+    canvas.style.transform = `rotate(${currentRotation}deg)`;
+    spinning = false;
+    spinBtn.disabled = false;
+    message.textContent = '';
+    resultDisplay.classList.remove('show');
+    resultDisplay.textContent = '';
+    drawWheel();
+  }
+
+  spinBtn.addEventListener('click', spin);
+  resetBtn.addEventListener('click', reset);
+
+  reset();
+})();
+</script>
+</body>
+</html>
