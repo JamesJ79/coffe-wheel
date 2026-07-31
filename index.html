@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
 <title>Coffee Shop Wheel</title>
 <style>
   :root{
@@ -23,26 +24,26 @@
     background: radial-gradient(circle at 50% 20%, #2a3040, #14171e 70%);
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     color: var(--text);
-    gap: 22px;
-    padding: 30px 10px;
+    gap: 14px;
+    padding: 14px 10px;
     overflow-x: hidden;
   }
   h1{
     margin: 0;
-    font-size: 1.6rem;
+    font-size: 1.3rem;
     letter-spacing: 0.5px;
   }
   .subtitle{
-    margin-top: -12px;
-    font-size: 0.85rem;
+    margin-top: -8px;
+    font-size: 0.8rem;
     color: var(--muted);
   }
   .wheel-wrap{
     position: relative;
     width: 420px;
     height: 420px;
-    max-width: 90vw;
-    max-height: 90vw;
+    max-width: min(92vw, 78vh);
+    max-height: min(92vw, 78vh);
   }
   .pointer{
     position: absolute;
@@ -77,8 +78,8 @@
     z-index: 4;
   }
   #spinBtn{
-    padding: 14px 46px;
-    font-size: 1.1rem;
+    padding: 12px 40px;
+    font-size: 1.05rem;
     font-weight: 700;
     letter-spacing: 1px;
     border: none;
